@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Panel CAD Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #f5f7fa; }
+        .container { background: white; border-radius: 12px; padding: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; }
+        label { display: block; margin: 12px 0 4px; font-weight: bold; }
+        input, select { width: 100%; padding: 8px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 6px; }
+        button { background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        button:hover { background: #2980b9; }
+        #status { margin: 16px 0; padding: 12px; border-radius: 6px; display: none; }
+        #status.loading { background: #eaf2f8; display: block; }
+        #status.success { background: #d5f5e3; display: block; }
+        #status.error { background: #fadbd8; display: block; }
+        #downloadLink { display: none; margin-top: 12px; }
+        #telemetry { background: #f8f9fa; border: 1px solid #eee; padding: 12px; border-radius: 6px; max-height: 300px; overflow: auto; font-family: monospace; font-size: 13px; white-space: pre-wrap; margin-top: 12px; display: none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>☀️ Solar Panel CAD Generator</h1>
+    <p>Generate a custom solar panel STL with telemetry.</p>
+
+    <label>Rows:</label>
+    <input type="number" id="rows" value="6" min="1" max="20">
+
+    <label>Columns:</label>
+    <input type="number" id="cols" value="10" min="1" max="20">
+
+    <label>Cell width (mm):</label>
+    <input type="number" id="cellWidth" value="80" min="20" max="200">
+
+    <label>Cell height (mm):</label>
+    <input type="number" id="cellHeight" value="50" min="20" max="200">
+
+    <label>Panel width (mm):</label>
+    <input type="number" id="panelWidth" value="1000" min="200" max="3000">
+
+    <label>Panel height (mm):</label>
+    <input type="number" id="panelHeight" value="600" min="200" max="2000">
+
+    <button id="generateBtn">Generate STL</button>
+
+    <div id="status"></div>
+    <div id="telemetry"></div>
+    <a id="downloadLink" download="solar_panel.stl">⬇️ Download STL</a>
+</div>
+
+<script>
+    document.getElementById('generateBtn').addEventListener('click', async function() {
+        const status = document.getElementById('status');
+        const telemetry = document.getElementById('telemetry');
+        const downloadLink = document.getElementById('downloadLink');
+
+        status.className = 'loading';
+        status.textContent = '⏳ Generating... this may take a few seconds.';
+        status.style.display = 'block';
+        telemetry.style.display = 'none';
+        downloadLink.style.display = 'none';
+
+        const params = {
+            rows: parseInt(document.getElementById('rows').value),
+            cols: parseInt(document.getElementById('cols').value),
+            cell_width: parseInt(document.getElementById('cellWidth').value),
+            cell_height: parseInt(document.getElementById('cellHeight').value),
+            panel_width: parseInt(document.getElementById('panelWidth').value),
+            panel_height: parseInt(document.getElementById('panelHeight').value)
+        };
+
+        try {
+            const response = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                status.className = 'error';
+                status.textContent = '❌ Error: ' + (data.error || 'Unknown error');
+                if (data.telemetry) {
+                    telemetry.textContent = data.telemetry.join('\n');
+                    telemetry.style.display = 'block';
+                }
+                return;
+            }
+
+            // Success – show telemetry and provide download
+            status.className = 'success';
+            status.textContent = '✅ Generation successful!';
+            if (data.telemetry) {
+                telemetry.textContent = data.telemetry.join('\n');
+                telemetry.style.display = 'block';
+            }
+            // The API returns the STL as a base64 string
+            if (data.stl_base64) {
+                const binary = atob(data.stl_base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const blob = new Blob([bytes], { type: 'application/vnd.ms-pki.stl' });
+                const url = URL.createObjectURL(blob);
+                downloadLink.href = url;
+                downloadLink.style.display = 'inline-block';
+            }
+        } catch (err) {
+            status.className = 'error';
+            status.textContent = '❌ Network error: ' + err.message;
+        }
+    });
+</script>
+</body>
+</html>
